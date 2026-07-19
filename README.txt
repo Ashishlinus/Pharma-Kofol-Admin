@@ -1,0 +1,1 @@
+Frozen specification version with live Airtable support and RSM->ASM->DSA drill-down.
