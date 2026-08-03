@@ -1,2 +1,1160 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Kofol Dashboard</title><link rel="stylesheet" href="style.css"></head><body><div id="login-container"><h2>KOFOL COUPON DASHBOARD</h2><input id="username" placeholder="Username"><input id="password" type="password" placeholder="Password"><button onclick="login()">Login</button></div><div id="dashboard" style="display:none;"><div class="sidebar"><ul><li onclick="showPage('summary')">Dashboard Summary</li><li onclick="showPage('claims')">Coupon Claims Received</li><li onclick="showPage('rsmApproved')">RSM Approved</li><li onclick="showPage('pendingRSM')">Pending at RSM</li><li onclick="showPage('hoApproved')">HO Approved</li><li onclick="showPage('pendingHO')">Pending at HO</li><li onclick="showPage('generated')">Coupons Generated - RSM Wise</li><li onclick="showPage('generatedASM')">Coupons Generated - ASM Wise</li><li onclick="showPage('generatedDSA')">Coupons Generated - DSA Wise</li><li onclick="logout()">Logout</li></ul></div><div class="content"><h2 id="pageTitle"></h2><button id="backBtn" style="display:none" onclick="goBack()">Back</button><div id="breadcrumb"></div><div id="contentArea"></div></div></div><script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="config.js"></script><script src="api.js"></script><script src="script.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>KCJ Admin Portal V2</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+<!-- ===========================
+LOADER
+=========================== -->
+
+<div id="loader">
+
+    <div class="spinner-border text-success"
+         style="width:4rem;height:4rem;"
+         role="status">
+
+        <span class="visually-hidden">
+            Loading...
+        </span>
+
+    </div>
+
+</div>
+
+<!-- ===========================
+LOGIN PAGE
+=========================== -->
+
+<div id="loginPage">
+
+<div class="container-fluid vh-100">
+
+<div class="row h-100">
+
+<div class="col-lg-7
+d-none
+d-lg-flex
+justify-content-center
+align-items-center
+bg-success
+text-white">
+
+<div class="text-center">
+
+<i class="fa-solid fa-ticket fa-7x mb-4"></i>
+
+<h1 class="fw-bold">
+
+KCJ ADMIN PORTAL
+
+</h1>
+
+<h4>
+
+Kofol Car Jeeto Campaign
+
+</h4>
+
+<p class="mt-4">
+
+Charak Pharma Pvt. Ltd.
+
+</p>
+
+</div>
+
+</div>
+
+<div class="col-lg-5
+d-flex
+justify-content-center
+align-items-center
+bg-light">
+
+<div class="card shadow-lg border-0 p-5"
+style="width:420px;border-radius:20px;">
+
+<div class="text-center mb-4">
+
+<i class="fa-solid fa-user-lock
+fa-4x
+text-success
+mb-3"></i>
+
+<h3>
+
+Administrator Login
+
+</h3>
+
+</div>
+
+<div class="mb-3">
+
+<label class="form-label">
+
+Username
+
+</label>
+
+<input
+id="username"
+type="text"
+class="form-control form-control-lg"
+placeholder="Enter Username">
+
+</div>
+
+<div class="mb-4">
+
+<label class="form-label">
+
+Password
+
+</label>
+
+<input
+id="password"
+type="password"
+class="form-control form-control-lg"
+placeholder="Enter Password">
+
+</div>
+
+<button
+class="btn btn-success btn-lg w-100"
+onclick="login()">
+
+<i class="fa-solid fa-right-to-bracket"></i>
+
+Login
+
+</button>
+
+<div class="text-center mt-4">
+
+Version 2.0
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- ===========================
+APPLICATION
+=========================== -->
+
+<div id="appContainer"
+style="display:none;">
+
+<!-- ===========================
+SIDEBAR
+=========================== -->
+
+<nav
+id="sidebar"
+class="sidebar">
+
+<div class="sidebar-header">
+
+<h3>
+
+KCJ
+
+</h3>
+
+<button
+class="btn btn-sm btn-light"
+id="toggleSidebar">
+
+<i class="fa-solid fa-bars"></i>
+
+</button>
+
+</div>
+
+<ul class="list-unstyled">
+
+<li>
+
+<a href="#" data-page="summary"
+onclick="showPage('summary')">
+
+<i class="fa-solid fa-chart-line"></i>
+
+Dashboard
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="claims"
+onclick="showPage('claims')">
+
+<i class="fa-solid fa-file-invoice"></i>
+
+Coupon Claims
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="rsmApproved"
+onclick="showPage('rsmApproved')">
+
+<i class="fa-solid fa-user-check"></i>
+
+RSM Approved
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="pendingRSM"
+onclick="showPage('pendingRSM')">
+
+<i class="fa-solid fa-hourglass-half"></i>
+
+Pending RSM
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="hoApproved"
+onclick="showPage('hoApproved')">
+
+<i class="fa-solid fa-circle-check"></i>
+
+HO Approved
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="pendingHO"
+onclick="showPage('pendingHO')">
+
+<i class="fa-solid fa-clock"></i>
+
+Pending HO
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="approvalAssistant"
+onclick="showPage('approvalAssistant')">
+
+<i class="fa-solid fa-user-shield"></i>
+
+Approval Assistant
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="generated"
+onclick="showPage('generated')">
+
+<i class="fa-solid fa-ticket"></i>
+
+Generated RSM
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="generatedASM"
+onclick="showPage('generatedASM')">
+
+<i class="fa-solid fa-users"></i>
+
+Generated ASM
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="generatedDSA"
+onclick="showPage('generatedDSA')">
+
+<i class="fa-solid fa-user-group"></i>
+
+Generated DSA
+
+</a>
+
+</li>
+
+<li class="sidebar-section-label">Duplicate Detection</li>
+
+<li>
+
+<a href="#" data-page="duplicateDashboard"
+onclick="showPage('duplicateDashboard')">
+
+<i class="fa-solid fa-gauge-high"></i>
+
+Duplicate Dashboard
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="duplicateReport"
+onclick="showPage('duplicateReport')">
+
+<i class="fa-solid fa-clone"></i>
+
+Duplicate Report
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="highRiskClaims"
+onclick="showPage('highRiskClaims')">
+
+<i class="fa-solid fa-triangle-exclamation"></i>
+
+High Risk Claims
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="possibleDuplicateClaims"
+onclick="showPage('possibleDuplicateClaims')">
+
+<i class="fa-solid fa-circle-question"></i>
+
+Possible Duplicate Claims
+
+</a>
+
+</li>
+
+<li class="sidebar-section-label">Rejected</li>
+
+<li>
+
+<a href="#" data-page="rejectedTotal"
+onclick="showPage('rejectedTotal')">
+
+<i class="fa-solid fa-ban"></i>
+
+Total Rejected
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="rejectedRSM"
+onclick="showPage('rejectedRSM')">
+
+<i class="fa-solid fa-user-xmark"></i>
+
+Rejected by RSM
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#" data-page="rejectedHO"
+onclick="showPage('rejectedHO')">
+
+<i class="fa-solid fa-user-slash"></i>
+
+Rejected by HO
+
+</a>
+
+</li>
+
+<li class="sidebar-section-label">Download</li>
+
+<li>
+
+<a href="#"
+onclick="downloadTotalClaims();return false;">
+
+<i class="fa-solid fa-file-arrow-down"></i>
+
+Download Total Claims Received
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#"
+onclick="downloadTotalCoupons();return false;">
+
+<i class="fa-solid fa-ticket"></i>
+
+Download Total Coupons Generated
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#"
+onclick="logout()">
+
+<i class="fa-solid fa-right-from-bracket"></i>
+
+Logout
+
+</a>
+
+</li>
+
+</ul>
+
+</nav>
+
+<!-- ===========================
+MAIN CONTENT
+=========================== -->
+
+<div id="mainContent">
+
+<header class="topbar">
+
+<div class="d-flex
+justify-content-between
+align-items-center">
+
+<div>
+
+<h2 id="pageTitle">
+
+Dashboard
+
+</h2>
+
+<div id="breadcrumb">
+
+Welcome Administrator
+
+</div>
+
+</div>
+
+<div class="d-flex align-items-center">
+
+<span id="connectionIndicator" class="badge text-bg-success me-3">Connected</span>
+
+<button
+class="btn btn-outline-success me-2"
+onclick="loadData()">
+
+<i class="fa-solid fa-rotate"></i>
+
+Refresh
+
+</button>
+
+<button
+class="btn btn-success"
+onclick="logout()">
+
+Logout
+
+</button>
+
+</div>
+
+</div>
+
+</header>
+
+<!-- ===========================
+BODY STARTS HERE
+=========================== -->
+
+<div class="container-fluid mt-4">
+
+<!-- ==========================================
+DASHBOARD SECTION
+========================================== -->
+
+<div id="dashboardSection">
+
+    <!-- KPI CARDS -->
+
+    <div class="row g-4">
+
+        <div class="col-xl-3 col-lg-6">
+
+            <div class="card dashboard-card shadow-sm border-0">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <div>
+
+                            <h6 class="text-muted mb-1">
+                                Total Claims
+                            </h6>
+
+                            <h2 id="cardTotalClaims">
+                                0
+                            </h2>
+
+                        </div>
+
+                        <div class="card-icon bg-primary">
+
+                            <i class="fa-solid fa-file-invoice text-white fa-lg"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="col-xl-3 col-lg-6">
+
+            <div class="card dashboard-card shadow-sm border-0">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <div>
+
+                            <h6 class="text-muted mb-1">
+                                Pending HO
+                            </h6>
+
+                            <h2 id="cardPendingHO">
+                                0
+                            </h2>
+
+                        </div>
+
+                        <div class="card-icon bg-warning">
+
+                            <i class="fa-solid fa-clock text-white fa-lg"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="col-xl-3 col-lg-6">
+
+            <div class="card dashboard-card shadow-sm border-0">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <div>
+
+                            <h6 class="text-muted mb-1">
+                                Approved
+                            </h6>
+
+                            <h2 id="cardApproved">
+                                0
+                            </h2>
+
+                        </div>
+
+                        <div class="card-icon bg-success">
+
+                            <i class="fa-solid fa-circle-check text-white fa-lg"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="col-xl-3 col-lg-6">
+
+            <div class="card dashboard-card shadow-sm border-0">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <div>
+
+                            <h6 class="text-muted mb-1">
+                                Coupons Generated
+                            </h6>
+
+                            <h2 id="cardCoupons">
+                                0
+                            </h2>
+
+                        </div>
+
+                        <div class="card-icon bg-danger">
+
+                            <i class="fa-solid fa-ticket text-white fa-lg"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4 mt-1">
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Pending RSM</h6>
+                            <h2 id="cardPendingRSM">0</h2>
+                        </div>
+                        <div class="card-icon bg-info">
+                            <i class="fa-solid fa-hourglass-half text-white fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Rejected Claims</h6>
+                            <h2 id="cardRejected">0</h2>
+                        </div>
+                        <div class="card-icon bg-secondary">
+                            <i class="fa-solid fa-ban text-white fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Duplicate Claims</h6>
+                            <h2 id="cardDuplicate">0</h2>
+                        </div>
+                        <div class="card-icon bg-warning">
+                            <i class="fa-solid fa-clone text-white fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">High Risk Claims</h6>
+                            <h2 id="cardHighRisk">0</h2>
+                        </div>
+                        <div class="card-icon bg-danger">
+                            <i class="fa-solid fa-triangle-exclamation text-white fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Avg. Approval Time</h6>
+                            <h2 id="cardAvgApproval">N/A</h2>
+                        </div>
+                        <div class="card-icon" style="background:#6f42c1;">
+                            <i class="fa-solid fa-stopwatch text-white fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHART ROW -->
+
+    <div class="row g-4 mt-2">
+
+        <div class="col-xl-8">
+
+            <div class="card shadow-sm border-0">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="mb-0">
+
+                        Daily Claims Trend
+
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    <canvas
+                    id="claimsChart"
+                    height="120">
+
+                    </canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="col-xl-4">
+
+            <div class="card shadow-sm border-0">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="mb-0">
+
+                        Approval Status
+
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    <canvas
+                    id="statusChart">
+
+                    </canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ==========================================
+REPORT TOOLBAR
+========================================== -->
+
+<div id="reportToolbar" style="display:none;">
+
+    <div class="row mt-4 align-items-center">
+
+        <div class="col-lg-4 col-md-6 mb-2">
+
+            <input
+
+            type="text"
+
+            id="globalSearch"
+
+            class="form-control"
+
+            placeholder="Search Customer, Doctor, Mobile, Invoice...">
+
+        </div>
+
+
+
+        <div class="col-lg-2 col-md-3 mb-2">
+
+            <button
+            id="globalSearchBtn"
+            class="btn btn-success w-100">
+
+                <i class="fa-solid fa-magnifying-glass"></i>
+
+                Search
+
+            </button>
+
+        </div>
+
+
+
+        <div class="col-lg-2 col-md-3 mb-2">
+
+            <button
+            id="globalResetBtn"
+            class="btn btn-secondary w-100">
+
+                Reset
+
+            </button>
+
+        </div>
+
+
+
+        <div class="col-lg-4 text-lg-end mb-2">
+
+            <button
+
+            class="btn btn-primary"
+
+            onclick="downloadTableExcel('Report.xlsx')">
+
+                <i class="fa-solid fa-file-excel"></i>
+
+                Export Excel
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+<!-- ==========================================
+REPORT AREA
+========================================== -->
+
+<div class="card shadow-sm border-0 mt-4">
+
+    <div class="card-header bg-white">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <h5
+            id="tableHeading"
+            class="mb-0">
+
+                Dashboard Report
+
+            </h5>
+
+            <div>
+
+                <button
+                id="refreshTableBtn"
+                class="btn btn-outline-success me-2"
+                onclick="loadData()">
+
+                    <i class="fa-solid fa-rotate"></i>
+
+                    Refresh
+
+                </button>
+
+                <button
+                id="backBtn"
+                class="btn btn-outline-primary"
+                style="display:none"
+                onclick="goBack()">
+
+                    <i class="fa-solid fa-arrow-left"></i>
+
+                    Back
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card-body">
+
+        <div
+        id="contentArea">
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+<!-- END CONTAINER -->
+
+<!-- ==========================================
+FOOTER
+========================================== -->
+
+<footer class="footer mt-4">
+
+    <div class="container-fluid">
+
+        <div class="row align-items-center">
+
+            <div class="col-md-6">
+
+                <strong>
+
+                    KCJ Admin Portal V2
+
+                </strong>
+
+                <br>
+
+                <small>
+
+                    Kofol Car Jeeto Campaign Management System
+
+                </small>
+
+            </div>
+
+            <div class="col-md-6 text-md-end">
+
+                <small>
+
+                    © 2026 Charak Pharma Pvt. Ltd.
+
+                </small>
+
+                <br>
+
+                <small id="lastUpdated">
+
+                    Last Updated : --
+
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</footer>
+
+</div>
+
+<!-- END MAIN CONTENT -->
+
+</div>
+
+<!-- END APP CONTAINER -->
+
+<!-- ==========================================
+TOAST MESSAGE
+========================================== -->
+
+<div
+class="position-fixed bottom-0 end-0 p-3"
+style="z-index:9999;">
+
+    <div
+    id="liveToast"
+    class="toast align-items-center text-bg-success border-0"
+    role="alert">
+
+        <div class="d-flex">
+
+            <div
+            id="toastMessage"
+            class="toast-body">
+
+                Welcome
+
+            </div>
+
+            <button
+            type="button"
+            class="btn-close btn-close-white me-2 m-auto"
+            data-bs-dismiss="toast">
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ==========================================
+PAGE LOADER
+========================================== -->
+
+<div
+id="pageLoader"
+style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:rgba(255,255,255,.75);
+z-index:9999;">
+
+    <div
+    class="d-flex justify-content-center align-items-center h-100">
+
+        <div class="text-center">
+
+            <div
+            class="spinner-border text-success mb-3"
+            style="width:4rem;height:4rem;">
+
+            </div>
+
+            <div class="loader-label text-success fw-semibold">Loading data...</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ==========================================
+CLAIM REVIEW MODAL (Duplicate Detection)
+========================================== -->
+
+<div class="modal fade" id="claimReviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="claimReviewModalTitle">Claim Review</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="claimReviewModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ==========================================
+BOOTSTRAP
+========================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- ==========================================
+SHEET JS
+========================================== -->
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+<!-- ==========================================
+PROJECT FILES
+========================================== -->
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="common.js"></script>
+<script src="duplicate.js"></script>
+<script src="loader.js"></script>
+<script src="report.js"></script>
+<script src="analytics.js"></script>
+<script src="search.js"></script>
+<script src="approval.js"></script>
+<script src="script.js"></script>
+
+<!-- ==========================================
+INITIALIZATION
+========================================== -->
+
+</body>
+
+</html>

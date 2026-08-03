@@ -1,1 +1,195 @@
-body{font-family:Arial;margin:0}#dashboard{display:flex}.sidebar{width:250px;background:#eee;min-height:100vh;padding:10px}.sidebar ul{list-style:none;padding:0}.sidebar li{padding:8px;cursor:pointer}.content{flex:1;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;cursor:pointer}#login-container{max-width:300px;margin:100px auto;display:flex;flex-direction:column;gap:10px}
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Segoe UI,Arial,sans-serif;
+    background:#f4f6f9;
+}
+
+#loader{
+    position:fixed;
+    inset:0;
+    background:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    z-index:9999;
+}
+
+#appContainer{
+    display:flex;
+    min-height:100vh;
+}
+
+.sidebar{
+    width:260px;
+    background:#0F8B4C;
+    color:white;
+    position:fixed;
+    left:0;
+    top:0;
+    bottom:0;
+    overflow:auto;
+}
+
+.sidebar-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:20px;
+    border-bottom:1px solid rgba(255,255,255,.2);
+}
+
+.sidebar h3{
+    color:white;
+    margin:0;
+}
+
+.sidebar ul{
+    list-style:none;
+    padding:10px 0;
+}
+
+.sidebar li{
+    margin:5px 0;
+}
+
+.sidebar a{
+    color:white;
+    text-decoration:none;
+    display:block;
+    padding:14px 20px;
+}
+
+.sidebar a:hover{
+    background:rgba(255,255,255,.15);
+}
+
+#mainContent{
+    margin-left:260px;
+    width:calc(100% - 260px);
+    min-height:100vh;
+}
+
+.topbar{
+    background:white;
+    padding:20px 30px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+
+.dashboard-card{
+    border-radius:15px;
+}
+
+.card-icon{
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    color:white;
+    font-size:24px;
+}
+
+.footer{
+    background:white;
+    margin-top:30px;
+    padding:15px 25px;
+}
+
+#contentArea table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+#contentArea th,
+#contentArea td{
+    border:1px solid #ddd;
+    padding:10px;
+}
+
+#contentArea th{
+    background:#0F8B4C;
+    color:white;
+}
+
+#loginPage{
+    min-height:100vh;
+}
+
+.sidebar-section-label{
+    text-transform:uppercase;
+    font-size:11px;
+    letter-spacing:.05em;
+    color:rgba(255,255,255,.55);
+    padding:16px 20px 4px;
+}
+
+.sidebar a.active{
+    background:rgba(255,255,255,.2);
+    font-weight:600;
+    border-left:4px solid white;
+}
+
+#connectionIndicator{
+    font-size:12px;
+    padding:6px 12px;
+}
+
+.report-table-scroll{
+    max-height:65vh;
+    overflow:auto;
+    border:1px solid #eee;
+    border-radius:8px;
+}
+
+.report-table thead th.sticky-th{
+    position:sticky;
+    top:0;
+    background:#0F8B4C;
+    color:white;
+    z-index:2;
+    white-space:nowrap;
+}
+
+.report-filter-row th{
+    position:sticky;
+    top:37px;
+    background:#f4f6f9;
+    z-index:1;
+    padding:6px;
+}
+
+.report-table tbody tr:hover{
+    background:#f0fdf4;
+}
+
+#pageLoader .loader-label{
+    font-size:14px;
+}
+
+.dashboard-card h2{
+    font-weight:700;
+}
+
+#claimReviewModalBody .card-header{
+    font-size:14px;
+}
+
+@media(max-width:991px){
+
+.sidebar{
+    position:relative;
+    width:100%;
+}
+
+#mainContent{
+    margin-left:0;
+    width:100%;
+}
+
+}
