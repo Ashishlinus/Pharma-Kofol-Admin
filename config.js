@@ -1,4 +1,43 @@
-const CONFIG={TOKEN:"patiRHIu3SPQWkNEz.cbbf3e838072ab370187f21eb5a419d181d5c777a602f637b419dc939bad904a",CLAIMS_BASE_ID:"appeNJfuYLRQPQYQ3",CLAIMS_TABLE:"Data",CLAIMS_VIEW:"Grid view",GENERATED_BASE_ID:"appbm4t71RAvLqE0M",GENERATED_TABLE:"Data",GENERATED_VIEW:"Grid view"};const USERS=[{username:"admin",password:"admin123"}];
+/* =====================================================================
+   CONFIG.JS -- Version 3.0
+   As of Version 3.0, the browser no longer talks to Airtable directly.
+   The ONLY thing this file exposes is GAS_WEBAPP_URL -- the Google Apps
+   Script Web App endpoint that now does every Airtable read/write on
+   the portal's behalf.
+
+   CLAIMS_BASE_ID / CLAIMS_TABLE / CLAIMS_VIEW / GENERATED_BASE_ID /
+   GENERATED_TABLE / GENERATED_VIEW below are NOT real Airtable
+   identifiers anymore -- they are opaque dataset keys. api.js forwards
+   whichever one it's given to Apps Script so it knows which of the two
+   Airtable bases (Claims vs Coupons Generated) a call is for; nothing
+   about the actual Airtable schema is derivable from them. The real
+   Airtable PAT, Base IDs, Table Names, and View Names now live ONLY in
+   the Apps Script project's Script Properties -- see Config.gs in the
+   apps-script/ folder and MIGRATION_GUIDE.md.
+
+   These constant NAMES were kept identical to the pre-3.0 version on
+   purpose: every other file (script.js, approval.js) still reads
+   CONFIG.CLAIMS_BASE_ID etc. exactly as before and required no changes.
+===================================================================== */
+
+const CONFIG = {
+    GAS_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbzgqv5sbKXffsfSxHfBF68rFJC9fUPaQu0QQsZjLlTRL-dx9pW1WrHj_NrvWCO3IyA1jQ/exec",
+
+    CLAIMS_BASE_ID: "claims",
+    CLAIMS_TABLE: "claims",
+    CLAIMS_VIEW: "claims",
+
+    GENERATED_BASE_ID: "generatedCoupons",
+    GENERATED_TABLE: "generatedCoupons",
+    GENERATED_VIEW: "generatedCoupons"
+};
+
+// Version 3.1: the hardcoded USERS array (admin/admin123) that used to
+// live here has been removed entirely. Login credentials now live only
+// in the AdminUsers Airtable table (in the separate Admin/Audit base),
+// checked server-side by Apps Script -- see auth.js and
+// VERSION_3_1_SETUP.md. There is no credential of any kind in this
+// file, or anywhere else in the frontend.
 
 // Build marker -- open the browser console after loading the page and
 // confirm this logs. If it doesn't appear, or shows a different value,

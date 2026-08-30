@@ -16,26 +16,12 @@ let claimsData = [],
 
 /* -----------------------------------------------------------------------
    LOGIN / LOGOUT
+   Version 3.1: moved to auth.js. login() now authenticates against the
+   AdminUsers Airtable table via Apps Script (session token, not a local
+   USERS array check), and shows the login effort snapshot before
+   calling loadData() below. logout() invalidates the session
+   server-side first. Neither function is defined in this file anymore.
 ----------------------------------------------------------------------- */
-
-function login() {
-    const u = username.value;
-    const p = password.value;
-
-    if (!USERS.find(x => x.username === u && x.password === p)) {
-        Utils.showToast('Invalid username or password.', false);
-        return;
-    }
-
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('appContainer').style.display = 'block';
-
-    loadData();
-}
-
-function logout() {
-    location.reload();
-}
 
 
 /* -----------------------------------------------------------------------

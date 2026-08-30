@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>KCJ Admin Portal V2</title>
+<title>KCJ Admin Portal V3.1</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -140,6 +140,7 @@ placeholder="Enter Password">
 </div>
 
 <button
+id="loginBtn"
 class="btn btn-success btn-lg w-100"
 onclick="login()">
 
@@ -151,7 +152,7 @@ Login
 
 <div class="text-center mt-4">
 
-Version 2.0
+Version 3.1
 
 </div>
 
@@ -456,6 +457,20 @@ Download Total Coupons Generated
 <li>
 
 <a href="#"
+id="bookingStatusOrganogramBtn"
+onclick="generateBookingStatusOrganogramWise();return false;">
+
+<i class="fa-solid fa-sitemap"></i>
+
+Booking Status Organogram Wise
+
+</a>
+
+</li>
+
+<li>
+
+<a href="#"
 onclick="logout()">
 
 <i class="fa-solid fa-right-from-bracket"></i>
@@ -499,6 +514,8 @@ Welcome Administrator
 </div>
 
 <div class="d-flex align-items-center">
+
+<span id="adminIdentity" class="text-muted small me-3"></span>
 
 <span id="connectionIndicator" class="badge text-bg-success me-3">Connected</span>
 
@@ -988,7 +1005,7 @@ FOOTER
 
                 <strong>
 
-                    KCJ Admin Portal V2
+                    KCJ Admin Portal V3.1
 
                 </strong>
 
@@ -1106,6 +1123,29 @@ z-index:9999;">
 </div>
 
 <!-- ==========================================
+LOGIN EFFORT SNAPSHOT MODAL (Version 3.1)
+Shown once right after a successful login, before the dashboard loads.
+Filled in by auth.js's showEffortSnapshotAndContinue(). Static backdrop
++ no keyboard-dismiss -- the reviewer must press OK to continue, same
+as the approval/rejection summary modals.
+========================================== -->
+
+<div class="modal fade" id="effortSnapshotModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="effortSnapshotTitle">Welcome</h5>
+            </div>
+            <div class="modal-body" id="effortSnapshotBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success btn-lg w-100" id="effortSnapshotOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==========================================
 CLAIM REVIEW MODAL (Duplicate Detection)
 ========================================== -->
 
@@ -1124,6 +1164,73 @@ CLAIM REVIEW MODAL (Duplicate Detection)
         </div>
     </div>
 </div>
+
+<!-- ==========================================
+HO DECISION CONFIRMATION MODAL (Approve / Reject)
+Shared by both actions -- content is filled in by
+approvalWorkflow.showApprovalDialog() / showRejectDialog().
+========================================== -->
+
+<div class="modal fade" id="hoConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white" id="hoConfirmHeader">
+                <h5 class="modal-title" id="hoConfirmTitle">Confirm</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="hoConfirmBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="hoConfirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ==========================================
+HO APPROVAL SUCCESS SUMMARY MODAL
+Shown after approveClaim() completes -- filled in by
+approvalWorkflow._showApprovalSuccessSummary().
+========================================== -->
+
+<div class="modal fade" id="hoApprovalSuccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-circle-check"></i> Claim Approved Successfully</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="hoApprovalSuccessBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success btn-lg w-100" id="hoApprovalSuccessOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==========================================
+HO REJECTION SUCCESS SUMMARY MODAL
+Shown after rejectClaim() completes -- filled in by
+approvalWorkflow._showRejectionSuccessSummary().
+========================================== -->
+
+<div class="modal fade" id="hoRejectionSuccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-circle-check"></i> Claim Rejected Successfully</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="hoRejectionSuccessBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success btn-lg w-100" id="hoRejectionSuccessOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ==========================================
 BOOTSTRAP
 ========================================== -->
@@ -1137,18 +1244,30 @@ SHEET JS
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 
 <!-- ==========================================
+EXCELJS (Booking Status Organogram Wise only --
+SheetJS Community Edition above can't write cell
+styles/fills/borders, which this report's template
+requires)
+========================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+<!-- ==========================================
 PROJECT FILES
 ========================================== -->
 
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="common.js"></script>
+<script src="auth.js"></script>
 <script src="duplicate.js"></script>
+<script src="coupons.js"></script>
 <script src="loader.js"></script>
 <script src="report.js"></script>
 <script src="analytics.js"></script>
 <script src="search.js"></script>
 <script src="approval.js"></script>
+<script src="booking-status-organogram.js"></script>
 <script src="script.js"></script>
 
 <!-- ==========================================
