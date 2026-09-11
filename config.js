@@ -21,7 +21,7 @@
 ===================================================================== */
 
 const CONFIG = {
-    GAS_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbzgqv5sbKXffsfSxHfBF68rFJC9fUPaQu0QQsZjLlTRL-dx9pW1WrHj_NrvWCO3IyA1jQ/exec",
+    GAS_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbyjqFwINWBwl2gwlv69gWhXvnyR_QG954CMzI5rKhbbatMcnBz9F3XTxpvOHZ1RsL0h/exec",
 
     CLAIMS_BASE_ID: "claims",
     CLAIMS_TABLE: "claims",
