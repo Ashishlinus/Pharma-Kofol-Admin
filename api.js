@@ -141,33 +141,37 @@ async function fetchAllRecords(baseId, table, view) {
     return (data && data.records) || [];
 }
 
-// Update an existing record's fields (PATCH -- partial update). Only
-// ever called against the Claims table in this app (see approval.js),
-// so this always routes to the 'updateClaim' action. Field-value
-// sanitization for Airtable's column types now happens inside Apps
-// Script (Utils.gs, sanitizeFieldsForAirtable_) -- callers here are
-// unaffected and keep sending plain numbers/booleans/strings exactly as
-// before.
+// Update an existing record's fields (PATCH -- partial update). As of
+// Version 4 this is only ever called against the Claims table for the
+// REJECT path (see approval.js's rejectClaim()) -- approve no longer
+// calls this at all, see approveClaimTransaction() below.
 async function updateRecord(baseId, table, recordId, fields) {
     const data = await callGas('updateClaim', { recordId, fields });
     return data && data.record;
 }
 
-// Create a new record. Only ever called against the Coupons Generated
-// table in this app (see approval.js's createCouponGeneratedRecord),
-// so this always routes to the 'createGeneratedCoupon' action.
-async function createRecord(baseId, table, fields) {
-    const data = await callGas('createGeneratedCoupon', { fields });
-    return data && data.record;
-}
+/* =====================================================================
+   VERSION 4 -- SERVER-OWNED APPROVAL TRANSACTION
+   Replaces the old createRecord()/getRecord() pair that approval.js's
+   createCouponGeneratedRecord() used to call once per approved coupon,
+   sequentially, from the browser. That whole loop -- and these two
+   functions -- have been removed; there is now exactly one request the
+   browser ever makes for the entire approve-and-generate operation.
+===================================================================== */
 
-// Fetch a single existing record by id. Only ever called against the
-// Coupons Generated table (to read back the Formula-computed CERT_NO
-// after a create -- see approval.js), so this always routes to the
-// 'getGeneratedCoupon' action.
-async function getRecord(baseId, table, recordId) {
-    const data = await callGas('getGeneratedCoupon', { recordId });
-    return data && data.record;
+// recordId: the Claims record being approved/resumed.
+// approvedCoupons / quantities: only meaningful (and required by the
+//   backend) the first time a given claim is approved -- omit both (or
+//   pass undefined) for a "Generate Remaining Coupons" recovery call on
+//   a claim that's already Approved; the backend resumes from what it
+//   stored on the first attempt regardless of what's sent here (see
+//   Approval.gs's runApprovalTransaction_()).
+// Returns the full structured result described in approval.js's
+// _showApprovalSuccessSummary(): { status, claimReferenceNo,
+// requestedCount, generatedCount, remainingCount, couponNumbers,
+// approvalDate, approvalTime, auditLogged, error }.
+async function approveClaimTransaction(recordId, approvedCoupons, quantities) {
+    return callGas('approveClaimTransaction', { recordId, approvedCoupons, quantities });
 }
 
 /* =====================================================================

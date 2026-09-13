@@ -549,11 +549,146 @@ BODY STARTS HERE
 
 <div class="container-fluid mt-4">
 
+
+
+<!-- ==========================================
+REPORT TOOLBAR
+========================================== -->
+
+<div id="reportToolbar" style="display:none;">
+
+    <div class="row mt-4 align-items-center">
+
+        <div class="col-lg-4 col-md-6 mb-2">
+
+            <input
+
+            type="text"
+
+            id="globalSearch"
+
+            class="form-control"
+
+            placeholder="Search Customer, Doctor, Mobile, Invoice...">
+
+        </div>
+
+
+
+        <div class="col-lg-2 col-md-3 mb-2">
+
+            <button
+            id="globalSearchBtn"
+            class="btn btn-success w-100">
+
+                <i class="fa-solid fa-magnifying-glass"></i>
+
+                Search
+
+            </button>
+
+        </div>
+
+
+
+        <div class="col-lg-2 col-md-3 mb-2">
+
+            <button
+            id="globalResetBtn"
+            class="btn btn-secondary w-100">
+
+                Reset
+
+            </button>
+
+        </div>
+
+
+
+        <div class="col-lg-4 text-lg-end mb-2">
+
+            <button
+
+            class="btn btn-primary"
+
+            onclick="downloadTableExcel('Report.xlsx')">
+
+                <i class="fa-solid fa-file-excel"></i>
+
+                Export Excel
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+<!-- ==========================================
+REPORT AREA
+========================================== -->
+
+<div class="card shadow-sm border-0 mt-4">
+
+    <div class="card-header bg-white">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <h5
+            id="tableHeading"
+            class="mb-0">
+
+                Dashboard Report
+
+            </h5>
+
+            <div>
+
+                <button
+                id="refreshTableBtn"
+                class="btn btn-outline-success me-2"
+                onclick="loadData()">
+
+                    <i class="fa-solid fa-rotate"></i>
+
+                    Refresh
+
+                </button>
+
+                <button
+                id="backBtn"
+                class="btn btn-outline-primary"
+                style="display:none"
+                onclick="goBack()">
+
+                    <i class="fa-solid fa-arrow-left"></i>
+
+                    Back
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card-body">
+
+        <div
+        id="contentArea">
+
+        </div>
+
+    </div>
+
+</div>
+
 <!-- ==========================================
 DASHBOARD SECTION
 ========================================== -->
 
-<div id="dashboardSection">
+<div id="dashboardSection" class="mt-4">
 
     <!-- KPI CARDS -->
 
@@ -771,24 +906,6 @@ DASHBOARD SECTION
 
     </div>
 
-    <div class="row g-4 mt-1">
-        <div class="col-xl-3 col-lg-6">
-            <div class="card dashboard-card shadow-sm border-0">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted mb-1">Avg. Approval Time</h6>
-                            <h2 id="cardAvgApproval">N/A</h2>
-                        </div>
-                        <div class="card-icon" style="background:#6f42c1;">
-                            <i class="fa-solid fa-stopwatch text-white fa-lg"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- CHART ROW -->
 
     <div class="row g-4 mt-2">
@@ -847,139 +964,6 @@ DASHBOARD SECTION
                 </div>
 
             </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- ==========================================
-REPORT TOOLBAR
-========================================== -->
-
-<div id="reportToolbar" style="display:none;">
-
-    <div class="row mt-4 align-items-center">
-
-        <div class="col-lg-4 col-md-6 mb-2">
-
-            <input
-
-            type="text"
-
-            id="globalSearch"
-
-            class="form-control"
-
-            placeholder="Search Customer, Doctor, Mobile, Invoice...">
-
-        </div>
-
-
-
-        <div class="col-lg-2 col-md-3 mb-2">
-
-            <button
-            id="globalSearchBtn"
-            class="btn btn-success w-100">
-
-                <i class="fa-solid fa-magnifying-glass"></i>
-
-                Search
-
-            </button>
-
-        </div>
-
-
-
-        <div class="col-lg-2 col-md-3 mb-2">
-
-            <button
-            id="globalResetBtn"
-            class="btn btn-secondary w-100">
-
-                Reset
-
-            </button>
-
-        </div>
-
-
-
-        <div class="col-lg-4 text-lg-end mb-2">
-
-            <button
-
-            class="btn btn-primary"
-
-            onclick="downloadTableExcel('Report.xlsx')">
-
-                <i class="fa-solid fa-file-excel"></i>
-
-                Export Excel
-
-            </button>
-
-        </div>
-
-    </div>
-
-</div>
-<!-- ==========================================
-REPORT AREA
-========================================== -->
-
-<div class="card shadow-sm border-0 mt-4">
-
-    <div class="card-header bg-white">
-
-        <div class="d-flex justify-content-between align-items-center">
-
-            <h5
-            id="tableHeading"
-            class="mb-0">
-
-                Dashboard Report
-
-            </h5>
-
-            <div>
-
-                <button
-                id="refreshTableBtn"
-                class="btn btn-outline-success me-2"
-                onclick="loadData()">
-
-                    <i class="fa-solid fa-rotate"></i>
-
-                    Refresh
-
-                </button>
-
-                <button
-                id="backBtn"
-                class="btn btn-outline-primary"
-                style="display:none"
-                onclick="goBack()">
-
-                    <i class="fa-solid fa-arrow-left"></i>
-
-                    Back
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="card-body">
-
-        <div
-        id="contentArea">
 
         </div>
 
@@ -1196,14 +1180,29 @@ approvalWorkflow._showApprovalSuccessSummary().
 <div class="modal fade" id="hoApprovalSuccessModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="fa-solid fa-circle-check"></i> Claim Approved Successfully</h5>
+            <!-- Version 4: header id'd so approval.js can switch between
+                 "Claim Approved Successfully" (bg-success), "Partial
+                 Completion" and "Coupon Generation Failed" (bg-warning)
+                 depending on the server's actual result -- see
+                 _showApprovalSuccessSummary(). Never just left saying
+                 "Successfully" when coupons are still missing. -->
+            <div class="modal-header bg-success text-white" id="hoApprovalSuccessHeader">
+                <h5 class="modal-title" id="hoApprovalSuccessTitle"><i class="fa-solid fa-circle-check"></i> Claim Approved Successfully</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="hoApprovalSuccessBody">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-success btn-lg w-100" id="hoApprovalSuccessOkBtn">OK</button>
+                <!-- Version 4: shown only when the approval result is
+                     Partial/Failed (remainingCount > 0) -- hidden via
+                     inline style otherwise. Wired in approval.js to call
+                     the same idempotent approveClaimTransaction action
+                     again, resuming from wherever the last attempt left
+                     off. -->
+                <button type="button" class="btn btn-warning" id="hoGenerateRemainingBtn" style="display:none;">
+                    <i class="fa-solid fa-rotate"></i> Generate Remaining Coupons
+                </button>
+                <button type="button" class="btn btn-success btn-lg flex-fill" id="hoApprovalSuccessOkBtn">OK</button>
             </div>
         </div>
     </div>

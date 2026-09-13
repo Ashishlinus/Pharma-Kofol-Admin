@@ -14,6 +14,17 @@ function getClaims_() {
     return { records: records };
 }
 
+// Fetch ONE Claims record fresh from Airtable by id -- Version 4. Used
+// by Approval.gs's approval-transaction orchestrator so every approve/
+// recovery call reads the claim's live server-side state (HO_APPROVAL,
+// COUPONS_PART) rather than trusting whatever the browser's in-memory
+// copy happens to still say.
+function getClaim_(recordId) {
+    if (!recordId) throw new Error('recordId is required.');
+    const cfg = getClaimsConfig_();
+    return airtableGetRecord_(cfg.baseId, cfg.table, recordId);
+}
+
 // Partial update of one Claims record (HO_APPROVAL / COUPONS_PART --
 // the only two fields the Approval Assistant ever writes here).
 function updateClaim_(recordId, fields) {

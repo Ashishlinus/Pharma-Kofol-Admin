@@ -10,8 +10,9 @@
    replaces the Android app for HO's part of the workflow only; MR and
    RSM continue to use Android exactly as before.
 
-   Depends on: common.js, duplicate.js, coupons.js, api.js (updateRecord/
-   createRecord)
+   Depends on: common.js, duplicate.js, coupons.js, api.js (updateRecord --
+   reject path only as of Version 4 -- and approveClaimTransaction --
+   approve + recovery path)
 ===================================================================== */
 
 const HO_REJECT_REASONS = [
@@ -68,6 +69,19 @@ class ApprovalWorkflow {
 
         const rejectionOkBtn = document.getElementById('hoRejectionSuccessOkBtn');
         if (rejectionOkBtn) rejectionOkBtn.addEventListener('click', () => this._onSummaryOk(this.rejectionModalInstance));
+
+        // Version 4: "Generate Remaining Coupons" in the success summary
+        // modal -- only ever visible when the last result had
+        // remainingCount > 0 (see _showApprovalSuccessSummary()). Re-runs
+        // the same idempotent action for whichever claim the modal is
+        // currently showing.
+        const generateRemainingBtn = document.getElementById('hoGenerateRemainingBtn');
+        if (generateRemainingBtn) {
+            generateRemainingBtn.addEventListener('click', () => {
+                const recordId = this._summaryRecordId;
+                if (recordId) this.generateRemainingCoupons(recordId);
+            });
+        }
     }
 
     // Shared OK-button handler for both summary modals (Enhancements 4 & 5):
@@ -482,10 +496,47 @@ class ApprovalWorkflow {
     // rejectClaim() to even be wired to. This is what fixes the "Review"
     // button on a matched duplicate record showing live Approve/Reject
     // buttons for a claim that was already decided.
+    // Version 4 (reworked -- no new Airtable fields; schema is frozen):
+    // an Approved claim whose Claim_Received.COUPONS_PART carries this
+    // system's own "<N> requested | <M> generated | <K> pending" status
+    // (see Approval.gs's formatClaimCouponsPart_()/
+    // parseCouponsPartStatus_() for the authoritative, server-side
+    // version of this same format) means a previous approve/recovery
+    // attempt didn't finish generating every coupon. Rather than the
+    // plain "already approved" lock message, this case gets its own
+    // recovery button -- wired to the exact same idempotent
+    // approveClaimTransaction action as the success modal's "Generate
+    // Remaining Coupons" button, so it's always safe to click regardless
+    // of how many coupons already exist. A claim showing "... | COMPLETE"
+    // (or any value that doesn't match this format at all -- e.g. a
+    // pre-Version-4 approval) is NOT treated as pending recovery.
+    _isPendingRecovery(f) {
+        const m = /^\d+\s+requested\s*\|\s*\d+\s+generated\s*\|\s*(\d+)\s+pending/i.exec(Utils.safeTrim(f.COUPONS_PART || ''));
+        return !!m && parseInt(m[1], 10) > 0;
+    }
+
     _hoDecisionLockedCard(record) {
         const f = record.fields || {};
         const rsm = Utils.normalizeString(f.RSM_APPROVAL);
         const ho = Utils.normalizeString(f.HO_APPROVAL);
+
+        if (ho === 'approved' && this._isPendingRecovery(f)) {
+            return `
+                <div class="card mb-3 border-0 shadow-sm">
+                    <div class="card-header bg-white"><strong><i class="fa-solid fa-user-shield"></i> HO Decision</strong></div>
+                    <div class="card-body">
+                        <div class="alert alert-warning mb-3">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <strong>Coupon generation incomplete.</strong> ${Utils.escapeHtml(f.COUPONS_PART)}
+                        </div>
+                        <button class="btn btn-warning btn-lg w-100" onclick="approvalWorkflow.generateRemainingCoupons('${record.id}')">
+                            <i class="fa-solid fa-rotate"></i> Generate Remaining Coupons
+                        </button>
+                        <div id="hoDecisionStatus" class="mt-3"></div>
+                    </div>
+                </div>
+            `;
+        }
 
         let reason;
         if (ho === 'approved') {
@@ -688,52 +739,76 @@ class ApprovalWorkflow {
         return sel.value;
     }
 
-    // ---- Post-decision summary modals (Enhancements 4 & 5) -------------
+    // ---- Post-decision summary modals ------------------------------------
 
-    // Reference Number / Customer Name / DSA HQ / ASM HQ / RSM HQ are read
-    // straight from the Claims record (unchanged by approval). Coupon
-    // Numbers come from the freshly read-back Generated rows (see
-    // createCouponGeneratedRecord) -- CERT_NO is a Formula field, so a row
-    // that somehow couldn't be re-read shows "Pending" rather than a blank.
+    // Version 4: Reference Number / Customer Name / DSA HQ / ASM HQ / RSM
+    // HQ are still read straight from the local Claims record (unchanged
+    // by approval). Everything coupon-related -- status, counts, coupon
+    // numbers -- now comes directly from the server's `result` (see
+    // Approval.gs's runApprovalTransaction_() response), which is the
+    // single source of truth for what actually happened. Every coupon
+    // number shown here was returned by Airtable's own batch-create
+    // response (or, on a resume, confirmed to already exist) -- never
+    // optimistic, never "Pending".
     //
-    // opts (Version 3.1.1): { partial, requestedCount, successCount, auditLogged }
-    // -- when partial is true, or auditLogged is false, a warning banner
-    // is shown at the top of the modal. The title/header stays "Claim
-    // Approved Successfully" either way -- the approval itself DID
-    // succeed (HO_APPROVAL is already 'Approved' in Airtable by the time
-    // this is called); these banners communicate a secondary issue
-    // (fewer coupons than requested, or the audit log write failing)
-    // without implying the approval was rejected or lost.
-    _showApprovalSuccessSummary(record, approvedCoupons, rows, opts) {
+    // result: { status, requestedCount, generatedCount, remainingCount,
+    //           couponNumbers, auditLogged, error }
+    //
+    // The header/title genuinely changes with `status` -- per the
+    // Version 4 requirement that a Partial/Failed outcome must never be
+    // presented as if it were a full success:
+    //   SUCCESS -- "Claim Approved Successfully" (bg-success)
+    //   PARTIAL -- "Claim Approved — Partial Coupon Generation" (bg-warning)
+    //   FAILED  -- "Claim Approved — Coupon Generation Failed" (bg-warning)
+    // In every case the claim itself IS approved (HO_APPROVAL is already
+    // 'Approved' in Airtable by the time this is called) -- only the
+    // coupon-generation outcome differs.
+    _showApprovalSuccessSummary(record, approvedCoupons, result) {
         const f = record.fields || {};
         const now = new Date();
-        opts = opts || {};
 
-        const couponNumbers = (rows || []).map(r => Utils.safeTrim((r && r.fields && r.fields.CERT_NO) || ''));
+        this._summaryRecordId = record.id;
 
+        const couponNumbers = result.couponNumbers || [];
         const couponRowsHtml = couponNumbers.map(num => `
             <tr>
-                <td>${num ? Utils.escapeHtml(num) : '<span class="text-muted">Pending</span>'}</td>
-                <td>${num ? '<span class="text-success">&#9989; Generated</span>' : '<span class="text-warning">Pending</span>'}</td>
+                <td>${Utils.escapeHtml(num)}</td>
+                <td><span class="text-success">&#9989; Generated</span></td>
             </tr>
         `).join('');
 
         const scrollable = couponNumbers.length > 10;
 
+        const headerEl = document.getElementById('hoApprovalSuccessHeader');
+        const titleEl = document.getElementById('hoApprovalSuccessTitle');
+        const generateRemainingBtn = document.getElementById('hoGenerateRemainingBtn');
+
         let warningsHtml = '';
-        if (opts.partial) {
+        if (result.status === 'PARTIAL' || result.status === 'FAILED') {
+            if (headerEl) headerEl.className = 'modal-header bg-warning text-dark';
+            if (titleEl) titleEl.innerHTML = result.status === 'FAILED'
+                ? '<i class="fa-solid fa-triangle-exclamation"></i> Approved — Coupon Generation Failed'
+                : '<i class="fa-solid fa-triangle-exclamation"></i> Approved — Partial Coupon Generation';
+
             warningsHtml += `
                 <div class="alert alert-warning mb-3">
-                    <strong>Partial Completion.</strong>
-                    Requested ${opts.requestedCount} coupon${opts.requestedCount === 1 ? '' : 's'},
-                    but only ${opts.successCount} were successfully generated.
-                    The claim itself is still approved -- please review and generate
-                    the remaining coupons for this claim separately; no automatic
-                    retry was attempted, to avoid creating duplicates.
+                    <strong>${result.status === 'FAILED' ? 'Coupon Generation Failed.' : 'Partial Completion.'}</strong>
+                    Requested ${result.requestedCount} coupon${result.requestedCount === 1 ? '' : 's'},
+                    ${result.generatedCount} successfully generated, ${result.remainingCount} still pending.
+                    The claim itself is approved -- click "Generate Remaining Coupons" below to safely
+                    finish the job. It is always safe to retry: coupons already generated are never
+                    duplicated.
+                    ${result.error ? `<div class="small mt-2">Error: ${Utils.escapeHtml(result.error)}</div>` : ''}
                 </div>
             `;
+            if (generateRemainingBtn) generateRemainingBtn.style.display = '';
+        } else {
+            if (headerEl) headerEl.className = 'modal-header bg-success text-white';
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Claim Approved Successfully';
+            if (generateRemainingBtn) generateRemainingBtn.style.display = 'none';
         }
-        if (opts.auditLogged === false) {
+
+        if (result.auditLogged === false) {
             warningsHtml += `
                 <div class="alert alert-warning mb-3">
                     <strong>Audit Log Warning.</strong>
@@ -749,7 +824,7 @@ class ApprovalWorkflow {
             bodyEl.innerHTML = `
                 ${warningsHtml}
                 <div class="row g-3 mb-3">
-                    <div class="col-md-6"><div class="text-muted small">Reference Number</div><div class="fw-bold">${Utils.escapeHtml(f.CERT_NO || record.id)}</div></div>
+                    <div class="col-md-6"><div class="text-muted small">Reference Number</div><div class="fw-bold">${Utils.escapeHtml(result.claimReferenceNo || f.CERT_NO || record.id)}</div></div>
                     <div class="col-md-6"><div class="text-muted small">Customer Name</div><div class="fw-bold">${Utils.escapeHtml(f.CUSTOMER_NAME)}</div></div>
                     <div class="col-md-4"><div class="text-muted small">DSA HQ</div><div>${Utils.escapeHtml(f.DSA_HQ)}</div></div>
                     <div class="col-md-4"><div class="text-muted small">ASM HQ</div><div>${Utils.escapeHtml(f.ASM_HQ)}</div></div>
@@ -761,7 +836,7 @@ class ApprovalWorkflow {
                 <hr>
                 <div class="text-muted small mb-2">
                     Generated Coupon Numbers
-                    ${opts.partial ? `<span class="text-muted">(${opts.successCount} of ${opts.requestedCount})</span>` : ''}
+                    (${result.generatedCount} of ${result.requestedCount})
                 </div>
                 <div style="${scrollable ? 'max-height:280px;overflow:auto;' : ''}">
                     <table class="table table-sm table-bordered mb-0">
@@ -864,14 +939,13 @@ class ApprovalWorkflow {
 
     // ---- Actions ---------------------------------------------------------
 
-    // Approve the current claim: one Airtable update (Claims table) +
-    // N Airtable creates (Coupons Generated table, one per approved
-    // coupon). Reuses the record already in claimsData -- no re-fetch.
-    //
-    // The Claims table PATCH updates ONLY HO_APPROVAL. HO_REMARKS,
-    // HO_APPROVAL_DATE, HO_APPROVAL_TIME, and HO_REJECTION_REASON do not
-    // exist as columns in this Airtable base and must never be sent --
-    // sending them is what was causing the update to fail.
+    // Version 4: approve the current claim with ONE request to Apps
+    // Script. The server validates the claim, generates whatever
+    // coupons are still missing in batches, updates Claims, writes the
+    // ApprovalLog entry, and returns one authoritative result -- see
+    // Approval.gs. The browser no longer loops over individual coupon
+    // creates/reads at all, and no longer writes the ApprovalLog entry
+    // itself for this path (see api.js's approveClaimTransaction()).
     async approveClaim() {
         const record = claimsData.find(r => r.id === this.currentRecordId);
         if (!record || !this._isApproveValid()) return;
@@ -882,110 +956,72 @@ class ApprovalWorkflow {
         this._hideConfirmModal();
         this._setDecisionBusy(true, 'Saving Approval...');
 
-        const claimUpdate = {
-            HO_APPROVAL: 'Approved'
-        };
-
         try {
-            await updateRecord(CONFIG.CLAIMS_BASE_ID, CONFIG.CLAIMS_TABLE, record.id, claimUpdate);
-
-            // Reflect the write locally -- see PERFORMANCE note (no re-fetch).
-            // Note: the Claims record itself is NEVER updated with the
-            // edited product quantities or a recalculated coupon count --
-            // per spec, only HO_APPROVAL (and, on reject, COUPONS_PART)
-            // are ever written back to the Claims table. Edited quantities
-            // only flow into the Coupons Generated rows below.
-            //
-            // From this line on, the approval itself has been accepted --
-            // HO_APPROVAL is already 'Approved' in Airtable. Nothing
-            // below, including a partial/failed coupon-generation run or
-            // a failed audit-log write, is ever reported to the reviewer
-            // as "Approval Failed" -- that phrase is reserved for the
-            // updateRecord() call above failing, before anything at all
-            // was written (see the catch block).
-            Object.assign(record.fields, claimUpdate);
-            this._logAudit('APPROVE', record);
-
-            // STEP 3/4: only generate coupons after the Claims update is
-            // confirmed successful. createCouponGeneratedRecord() never
-            // throws for a per-row creation failure (see its own
-            // comments) -- it stops and reports honestly instead, so a
-            // partial run here can never look like a thrown exception
-            // that lands in the catch block below.
-            this._updateBusyMessage('Generating Coupons...');
-            const genResult = await this.createCouponGeneratedRecord(record, approvedCoupons, editedQuantities);
-            console.log(`[KCJ Approval] Created ${genResult.successCount} of ${genResult.requestedCount} Coupons Generated row(s) for`, record.fields.CERT_NO);
-
-            this._setDecisionBusy(false);
-            this._clearDecisionStatus();
-            this._refreshAppViews();
-
-            // STATUS reflects what actually happened -- never reported as
-            // fully successful when it wasn't:
-            //   'Completed' -- every requested coupon was created
-            //   'Partial'   -- some, but not all, were created
-            //   'Failed'    -- none were created despite requesting >= 1
-            const originalCoupons = Utils.safeNumber(record.fields.NUMBER_OF_COUPONS, 0);
-            const couponCountEdited = approvedCoupons !== originalCoupons;
-            const skuEdited = COUPON_PRODUCTS.some(p =>
-                editedQuantities[p.key] !== Utils.safeNumber(record.fields[p.key], 0)
-            );
-
-            let status;
-            if (genResult.successCount === genResult.requestedCount) {
-                status = 'Completed';
-            } else if (genResult.successCount === 0) {
-                status = 'Failed';
-            } else {
-                status = 'Partial';
-            }
-
-            // Version 3.1: write one permanent ApprovalLog row for this
-            // decision -- only after the sequence above has fully
-            // finished (successfully, partially, or not at all). Never
-            // allowed to undo the approval or the coupons already
-            // created: a failure here is surfaced to the reviewer as a
-            // visible warning banner in the summary modal below (never
-            // silently swallowed to console-only), but is still never
-            // treated as an approval failure -- the claim was already
-            // approved and whatever coupons were created already exist
-            // regardless of whether this particular write succeeds.
-            let auditLogged = true;
-            try {
-                await logApprovalDecision({
-                    claimRecordId: record.id,
-                    txnId: record.fields.CERT_NO || '', // Reference No. from the Claims record (Coupons Claimed table)
-                    customerName: record.fields.CUSTOMER_NAME,
-                    dsaName: record.fields.DSA_NAME,
-                    dsaHq: record.fields.DSA_HQ,
-                    asmHq: record.fields.ASM_HQ,
-                    rsmHq: record.fields.RSM_HQ,
-                    decision: 'Approved',
-                    originalCoupons: originalCoupons,
-                    approvedCoupons: approvedCoupons,
-                    couponRecordsCreated: genResult.successCount,
-                    skuEdited: skuEdited,
-                    couponCountEdited: couponCountEdited,
-                    status: status,
-                    errorMessage: genResult.errorMessage || ''
-                });
-            } catch (logErr) {
-                console.error('[KCJ Approval] logApprovalDecision failed (approval itself already succeeded):', logErr);
-                auditLogged = false;
-            }
-
-            this._showApprovalSuccessSummary(record, approvedCoupons, genResult.rows, {
-                partial: status !== 'Completed',
-                requestedCount: genResult.requestedCount,
-                successCount: genResult.successCount,
-                auditLogged: auditLogged
-            });
-
+            const result = await approveClaimTransaction(record.id, approvedCoupons, editedQuantities);
+            this._handleApprovalResult(record, approvedCoupons, result);
         } catch (err) {
             console.error('[KCJ Approval] approveClaim failed:', err);
             this._setDecisionBusy(false);
-            this._showDecisionError('Approval Failed', 'Unable to update Airtable.', () => this.approveClaim());
+            this._showDecisionError('Approval Failed', err.message || 'Unable to reach Apps Script.', () => this.approveClaim());
         }
+    }
+
+    // Version 4: "Generate Remaining Coupons" -- resumes a claim that is
+    // already HO_APPROVAL='Approved' but still has remainingCount > 0
+    // (a previous attempt's batch create failed partway through, or
+    // never got a response back to the browser). Calls the exact same
+    // backend action as approveClaim(), just without approvedCoupons/
+    // quantities -- the server ignores both on a resume anyway and uses
+    // what it stored on the very first attempt (see
+    // Approval.gs/runApprovalTransaction_()), so there is nothing new
+    // to send here, and nothing the browser could send would change the
+    // outcome even if it tried.
+    async generateRemainingCoupons(recordId) {
+        const record = claimsData.find(r => r.id === recordId);
+        if (!record) {
+            Utils.showToast('Claim record not found.', false);
+            return;
+        }
+
+        if (this.successModalInstance) this.successModalInstance.hide();
+        this._setDecisionBusy(true, 'Generating Remaining Coupons...');
+
+        try {
+            const result = await approveClaimTransaction(recordId);
+            const approvedCoupons = result.requestedCount;
+            this._handleApprovalResult(record, approvedCoupons, result);
+        } catch (err) {
+            console.error('[KCJ Approval] generateRemainingCoupons failed:', err);
+            this._setDecisionBusy(false);
+            this._showDecisionError('Recovery Failed', err.message || 'Unable to reach Apps Script.', () => this.generateRemainingCoupons(recordId));
+        }
+    }
+
+    // Shared by approveClaim() and generateRemainingCoupons(): reflect
+    // the server's authoritative result locally, refresh the app's
+    // other views, and show the summary modal. The claim is considered
+    // "approved" (HO_APPROVAL='Approved' in Airtable) the instant the
+    // server returns success:true here, REGARDLESS of status -- SUCCESS,
+    // PARTIAL, and FAILED all mean the approval decision itself was
+    // recorded; only the coupon-generation outcome differs between them
+    // (see Approval.gs). Nothing in this method is ever reached if the
+    // Apps Script call itself threw (see the two callers' catch blocks).
+    _handleApprovalResult(record, approvedCoupons, result) {
+        record.fields.HO_APPROVAL = 'Approved';
+        // Mirror the server's authoritative COUPONS_PART back into the
+        // local copy (rather than recompute its wording here) so
+        // reopening this claim later in the same session -- before the
+        // next full data refresh -- still shows the right "Generate
+        // Remaining Coupons" state (see _isPendingRecovery()).
+        if (typeof result.couponsPart === 'string') record.fields.COUPONS_PART = result.couponsPart;
+        console.log(`[KCJ Approval] ${result.status}: ${result.generatedCount} of ${result.requestedCount} Coupons Generated row(s) for`, result.claimReferenceNo);
+        this._logAudit('APPROVE', record);
+
+        this._setDecisionBusy(false);
+        this._clearDecisionStatus();
+        this._refreshAppViews();
+
+        this._showApprovalSuccessSummary(record, approvedCoupons, result);
     }
 
     // Reject the current claim: one Airtable update, no coupon rows.
@@ -1067,138 +1103,16 @@ class ApprovalWorkflow {
         }
     }
 
-    // Create the Coupons Generated rows -- ONE ROW PER APPROVED COUPON,
-    // not a single row carrying a count.
-    //
-    // The reference Android blocks make this unambiguous: Clock5 fires
-    // once, sets a counter to the approved coupon count, and calls
-    // Spreadsheet.CreateRow. Spreadsheet.RowCreated then checks the
-    // counter -- if still > 1, it decrements and re-triggers Clock3,
-    // which calls CreateRow again with the exact same field values.
-    // This repeats until the counter reaches 1. So an approved count of
-    // 3 produces 3 separate rows in the Coupons Generated table, each
-    // with identical claim data -- it does NOT write NUMBER_OF_COUPONS=3
-    // once. (An earlier version of this file got this wrong -- it wrote
-    // a single row with NUMBER_OF_COUPONS set to the approved count.)
-    //
-    // Rows are created sequentially (matching Android's one-at-a-time
-    // timer loop) rather than in parallel, so we don't burst past
-    // Airtable's rate limit.
-    //
-    // Version 3.1.1: if a create fails partway through (e.g. row 4 of
-    // 5), this NEVER throws out to the caller -- doing so used to make
-    // the whole approval look "Failed" even though HO_APPROVAL had
-    // already been written and rows 1-3 already existed. Instead, the
-    // loop stops (no blind continuation, no automatic retry -- either
-    // of which risks duplicate coupons) and the honest
-    // requested-vs-created counts are returned for the caller
-    // (approveClaim) to report accurately.
-    async createCouponGeneratedRecord(record, approvedCoupons, editedQuantities) {
-        const fields = this._buildCouponGeneratedFields(record, approvedCoupons, editedQuantities);
-        const created = [];
-        let creationError = null;
-
-        for (let i = 0; i < approvedCoupons; i++) {
-            this._updateBusyMessage(`Generating Coupons... (${i + 1} of ${approvedCoupons})`);
-
-            try {
-                const row = await createRecord(CONFIG.GENERATED_BASE_ID, CONFIG.GENERATED_TABLE, fields);
-                created.push(row);
-
-                // Keep the in-memory generatedData list consistent so the
-                // Generated reports reflect the new rows without an extra fetch.
-                if (typeof generatedData !== 'undefined' && row) generatedData.push(row);
-            } catch (err) {
-                console.error(`[KCJ Approval] Coupon creation failed at row ${i + 1} of ${approvedCoupons}:`, err);
-                creationError = err;
-                break; // stop -- do not blindly continue, do not retry.
-            }
-        }
-
-        // CERT_NO is a Formula field in the Coupons Generated base,
-        // derived from AUTO_NO. Rather than trust that the create
-        // response above already carries the computed value, read every
-        // successfully created row back so the approval summary can show
-        // the real Coupon Numbers. Rows that failed to create are never
-        // attempted here -- there is nothing to read back.
-        this._updateBusyMessage('Retrieving Generated Coupon Numbers...');
-        const refreshed = [];
-        for (const row of created) {
-            try {
-                const full = await getRecord(CONFIG.GENERATED_BASE_ID, CONFIG.GENERATED_TABLE, row.id);
-                refreshed.push(full);
-
-                if (typeof generatedData !== 'undefined') {
-                    const idx = generatedData.findIndex(r => r.id === row.id);
-                    if (idx !== -1) generatedData[idx] = full;
-                }
-            } catch (err) {
-                console.error('[KCJ Approval] Could not read back generated record', row.id, err);
-                refreshed.push(row); // fall back to the create response
-            }
-        }
-
-        return {
-            rows: refreshed,
-            requestedCount: approvedCoupons,
-            successCount: refreshed.length,
-            failed: !!creationError,
-            errorMessage: creationError ? (creationError.message || String(creationError)) : ''
-        };
-    }
-
-    // Update just the status message during a busy operation, without
-    // re-disabling/re-validating every control each time (used to show
-    // per-row progress while createCouponGeneratedRecord loops).
-    _updateBusyMessage(message) {
-        const statusEl = document.getElementById('hoDecisionStatus');
-        if (!statusEl) return;
-        statusEl.innerHTML = `
-            <div class="alert alert-info d-flex align-items-center gap-2 mb-0">
-                <span class="spinner-border spinner-border-sm"></span>
-                <div>${Utils.escapeHtml(message)} <span class="text-muted">Please wait...</span></div>
-            </div>
-        `;
-    }
-
-    // Every GENERATED_COLUMN_ORDER field, copied 1:1 from the Claims
-    // record -- exactly what Android already copies -- except:
-    //   - AUTO_NO is skipped: it is an Airtable autonumber field in the
-    //     Generated base and cannot be set manually; Airtable assigns it.
-    //   - CERT_NO is skipped: it is a Formula field in the Generated base,
-    //     computed by Airtable from AUTO_NO (e.g. AUTO_NO 4512 ->
-    //     "KCJ004512"). The key must be entirely absent from the create
-    //     payload -- not "", not null, not undefined -- or Airtable
-    //     rejects the write. Claims-table behaviour is unaffected; this
-    //     only applies to rows created in the Generated base.
-    //   - NUMBER_OF_COUPONS uses the HO-approved value, not the DSA value.
-    //     (Copied unchanged into every one of the N rows -- the reference
-    //     blocks pass the identical field list to every CreateRow call in
-    //     the loop, so this is not decremented per row.)
-    //   - HO_APPROVAL is written as 'Approved' (this row only ever gets
-    //     created on approval).
-    //   - Any Kofol product column present in editedQuantities uses HO's
-    //     on-screen value instead of the DSA's original entry (Enhancement
-    //     3) -- the Claims record itself is left untouched either way.
-    // No other field is renamed, transformed, or omitted.
-    _buildCouponGeneratedFields(record, approvedCoupons, editedQuantities) {
-        const f = record.fields || {};
-        const fields = {};
-
-        GENERATED_COLUMN_ORDER.forEach(col => {
-            if (col === 'AUTO_NO') return;
-            if (col === 'CERT_NO') return;
-            if (col === 'NUMBER_OF_COUPONS') { fields[col] = approvedCoupons; return; }
-            if (col === 'HO_APPROVAL') { fields[col] = 'Approved'; return; }
-            if (editedQuantities && Object.prototype.hasOwnProperty.call(editedQuantities, col)) {
-                fields[col] = editedQuantities[col];
-                return;
-            }
-            if (f[col] !== undefined) fields[col] = f[col];
-        });
-
-        return fields;
-    }
+    // Version 4: the old busy-message-per-row helper
+    // (createCouponGeneratedRecord's per-coupon progress text) and the
+    // client-side coupon-field-builder (_buildCouponGeneratedFields) are
+    // both removed -- that entire loop now runs server-side, once, in
+    // Approval.gs's buildGenerationState_()/runApprovalTransaction_().
+    // The busy indicator shown during approveClaim()/
+    // generateRemainingCoupons() is just the ordinary _setDecisionBusy()
+    // spinner (see above) -- there is no more per-row progress to report
+    // because the browser makes exactly one request for the whole
+    // operation.
 
     // Find the next RSM-Approved / HO-Pending claim already in memory
     // (oldest first) and open it. If none remain, show the completion

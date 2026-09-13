@@ -12,25 +12,19 @@ function airtableHeaders_() {
     return { Authorization: 'Bearer ' + getAirtableToken_() };
 }
 
-// Mirrors the old browser-side fetchAllRecords() do/while offset loop,
-// just running here instead -- one Apps Script call from the browser
-// now covers what used to be several sequential Airtable calls from
-// the browser itself.
-//
-// `view` is optional as of Version 3.1 (AdminUsers/ApprovalLog may not
-// have a dedicated view configured) -- when falsy, the view query
-// param is omitted entirely rather than sent as an empty string, which
-// Airtable would otherwise treat as a request for a view literally
-// named "".
-function airtableFetchAll_(baseId, table, view) {
+// Shared offset-pagination loop -- both airtableFetchAll_() (view-based,
+// the whole table) and airtableFetchAllFiltered_() (formula-based, added
+// in Version 4 for the coupon-generation idempotency check) build their
+// query params and hand them here rather than duplicating the do/while
+// offset loop.
+function airtableListPaginated_(baseId, table, extraParams) {
     let records = [];
     let offset = '';
 
     do {
         let url = 'https://api.airtable.com/v0/' + baseId + '/' + encodeURIComponent(table);
 
-        const params = [];
-        if (view) params.push('view=' + encodeURIComponent(view));
+        const params = (extraParams || []).slice();
         if (offset) params.push('offset=' + offset);
         if (params.length) url += '?' + params.join('&');
 
@@ -51,6 +45,34 @@ function airtableFetchAll_(baseId, table, view) {
     } while (offset);
 
     return records;
+}
+
+// Mirrors the old browser-side fetchAllRecords() do/while offset loop,
+// just running here instead -- one Apps Script call from the browser
+// now covers what used to be several sequential Airtable calls from
+// the browser itself.
+//
+// `view` is optional as of Version 3.1 (AdminUsers/ApprovalLog may not
+// have a dedicated view configured) -- when falsy, the view query
+// param is omitted entirely rather than sent as an empty string, which
+// Airtable would otherwise treat as a request for a view literally
+// named "".
+function airtableFetchAll_(baseId, table, view) {
+    const params = [];
+    if (view) params.push('view=' + encodeURIComponent(view));
+    return airtableListPaginated_(baseId, table, params);
+}
+
+// GET, filtered by an Airtable formula -- Version 4, used only for the
+// coupon-generation idempotency check (see Coupons.gs
+// getGeneratedCouponsForClaim_()). Deliberately NEVER scoped to a
+// configured view: a view's own filters/sorts could hide a row a
+// view-scoped fetch would silently miss, which would make the count
+// below the real number and risk creating a duplicate coupon on retry.
+// This always queries the full table, filtered only by the formula.
+function airtableFetchAllFiltered_(baseId, table, filterFormula) {
+    const params = ['filterByFormula=' + encodeURIComponent(filterFormula)];
+    return airtableListPaginated_(baseId, table, params);
 }
 
 // ---- Field sanitization -- ported 1:1 from the old api.js -----------
@@ -76,6 +98,15 @@ function sanitizeFieldsForAirtable_(fields) {
         sanitized[key] = sanitizeFieldValueForAirtable_(fields[key]);
     });
     return sanitized;
+}
+
+// Version 4 -- small Apps-Script-side port of common.js's Utils.safeNumber,
+// used by Approval.gs so the approval-transaction logic never has to trust
+// a raw browser-supplied value (or a raw Airtable text-column value) is
+// actually numeric before doing arithmetic with it.
+function safeNumber_(value, fallback) {
+    const n = Number(value);
+    return isNaN(n) ? fallback : n;
 }
 
 // PATCH -- partial update, every other field on the record is left
@@ -143,6 +174,69 @@ function airtableCreateRecordRaw_(baseId, table, fields) {
             ('Airtable create failed (HTTP ' + resp.getResponseCode() + ')'));
     }
     return d;
+}
+
+// POST -- Version 4. Create up to AIRTABLE_BATCH_SIZE_ records per
+// Airtable request, splitting a larger array into sequential batches
+// (Airtable's own per-request record-create limit is 10). Used by
+// createGeneratedCouponsBatch_() (Coupons.gs) so approving a claim for
+// N coupons costs ceil(N/10) create calls instead of N.
+//
+// Stops at the first failed batch -- never blindly continues to the next
+// batch, and never retries within the same call. Returns exactly what
+// was actually created (each record already carries Airtable's own
+// computed fields, including the CERT_NO Formula field, straight from
+// the create response -- no separate read-back is needed) plus the
+// error message, if any, so the caller can persist an accurate
+// requested/generated/remaining count. A record already created by an
+// earlier successful batch in THIS call is obviously never recreated;
+// a record created by an earlier successful CALL (a previous attempt)
+// is never recreated either, because the caller (Approval.gs) always
+// re-checks how many already exist for the claim before deciding how
+// many more to request here.
+const AIRTABLE_BATCH_SIZE_ = 10;
+
+function airtableCreateRecordsBatch_(baseId, table, fieldsArray) {
+    const created = [];
+    let errorMessage = '';
+
+    for (let i = 0; i < fieldsArray.length; i += AIRTABLE_BATCH_SIZE_) {
+        const chunk = fieldsArray.slice(i, i + AIRTABLE_BATCH_SIZE_);
+        const url = 'https://api.airtable.com/v0/' + baseId + '/' + encodeURIComponent(table);
+        const payload = {
+            records: chunk.map(function (fields) {
+                return { fields: sanitizeFieldsForAirtable_(fields) };
+            })
+        };
+
+        const resp = UrlFetchApp.fetch(url, {
+            method: 'post',
+            contentType: 'application/json',
+            headers: airtableHeaders_(),
+            payload: JSON.stringify(payload),
+            muteHttpExceptions: true
+        });
+
+        let d;
+        try {
+            d = JSON.parse(resp.getContentText());
+        } catch (parseErr) {
+            errorMessage = 'Airtable returned an unparseable response (HTTP ' + resp.getResponseCode() +
+                ') while creating records ' + (i + 1) + '-' + (i + chunk.length) + '.';
+            break;
+        }
+
+        if (resp.getResponseCode() >= 300) {
+            errorMessage = (d && d.error && d.error.message) ||
+                ('Airtable batch create failed (HTTP ' + resp.getResponseCode() + ') while creating records ' +
+                 (i + 1) + '-' + (i + chunk.length) + '.');
+            break;
+        }
+
+        created.push.apply(created, (d && d.records) || []);
+    }
+
+    return { created: created, errorMessage: errorMessage };
 }
 
 // GET -- fetch a single existing record by id. Used to read back

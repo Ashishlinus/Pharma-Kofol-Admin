@@ -42,8 +42,6 @@ class Analytics {
         const findings = duplicateEngine.getRankedFindings(claimsData, 21);
         const highRisk = findings.filter(f => f.maxScore >= 61);
 
-        const avgApprovalTime = this._computeAvgApprovalTime();
-
         return {
             totalClaims: total,
             pendingHOCount: pendingHO.length,
@@ -53,38 +51,8 @@ class Analytics {
             rejected: rejected.length,
             couponsGenerated: generatedData.length,
             duplicateClaims: findings.length,
-            highRiskClaims: highRisk.length,
-            avgApprovalTime
+            highRiskClaims: highRisk.length
         };
-    }
-
-    // No explicit approval-timestamp field exists in the Airtable schema,
-    // so this is computed as the average gap between claim submission
-    // (DATE) and today for claims still awaiting a final decision --
-    // used only as an indicative processing-time metric.
-    _computeAvgApprovalTime() {
-        const decided = claimsData.filter(r =>
-            Utils.normalizeString(r.fields.HO_APPROVAL) === 'approved' ||
-            Utils.normalizeString(r.fields.HO_APPROVAL) === 'rejected'
-        );
-
-        if (decided.length === 0) return null;
-
-        const now = Date.now();
-        let totalDays = 0;
-        let counted = 0;
-
-        decided.forEach(r => {
-            const d = Utils.parseDate(r.fields.DATE);
-            if (!d) return;
-            const days = (now - d.getTime()) / 86400000;
-            if (days >= 0 && days < 3650) {
-                totalDays += days;
-                counted++;
-            }
-        });
-
-        return counted ? (totalDays / counted) : null;
     }
 
     renderDashboard() {
@@ -98,7 +66,6 @@ class Analytics {
         this._setText('cardRejected', k.rejected);
         this._setText('cardDuplicate', k.duplicateClaims);
         this._setText('cardHighRisk', k.highRiskClaims);
-        this._setText('cardAvgApproval', k.avgApprovalTime !== null ? `${k.avgApprovalTime.toFixed(1)}d` : 'N/A');
 
         this.renderCharts();
 
